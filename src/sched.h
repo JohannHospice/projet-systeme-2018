@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 struct scheduler;
 
 typedef void (*taskfunc)(void*, struct scheduler *);
