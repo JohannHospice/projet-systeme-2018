@@ -40,6 +40,7 @@ int sched_init(int nthreads, int qlen, taskfunc f, void *closure){
 
 int sched_spawn(taskfunc f, void *closure, struct scheduler *s){
 	//push
+	push(s->lifo, f, closure)
 	return 1;
 }
 
@@ -51,8 +52,8 @@ void *other(void*/*f, struct scheduler *s*/){
 	// declare mutex
 	// si empty sleep
 	// sinon
-	// (*element retourné)(args element retourné,shedular)
 	// pop
+	// (*element retourné)(args element retourné,shedular)
 	return f;
 }
 
