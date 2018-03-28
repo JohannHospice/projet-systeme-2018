@@ -2,19 +2,25 @@
 #include <pthread.h>
 #include "sched.h"
 
+// stack
+
+struct element{
+	void* f;
+	void* closure;
+}
+/*
+creer stack
+*/
 struct lifo{
 	//tasks
-	struct taskfunc **tfs;
-	struct taskfunc *head; 
-}
-
-
+	struct element **e;
+	int size;
+};
 
 struct scheduler {
 	pthread_t **pthreads;
 	struct *lifo;
 };
-
 
 int sched_init(int nthreads, int qlen, taskfunc f, void *closure){
 	if (nthreads <= 0){
@@ -37,19 +43,16 @@ int sched_spawn(taskfunc f, void *closure, struct scheduler *s){
 	return 1;
 }
 
-void *taskfunc(void*f, struct scheduler *s){
+void *other(void*/*f, struct scheduler *s*/){
+	args = (scheduler) ;// 
 	// TODO
 	// while true
 	// verify lifo empty
 	// declare mutex
 	// si empty sleep
 	// sinon
-	(*element retourné)(args element retourné,shedular)
+	// (*element retourné)(args element retourné,shedular)
 	// pop
 	return f;
 }
 
-
-*other(){
-
-}
