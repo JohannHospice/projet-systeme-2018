@@ -1,8 +1,17 @@
 #include <unistd.h>
+#include "lifo.h"
+#include "thread_pool.h"
 
 struct scheduler;
 
 typedef void (*taskfunc)(void*, struct scheduler *);
+
+
+typedef struct scheduler scheduler;
+struct scheduler{
+	Stack *tasks_stack;
+	ThreadPool* pool;
+};
 
 static inline int
 sched_default_threads()
