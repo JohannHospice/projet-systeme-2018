@@ -6,7 +6,7 @@
 typedef struct Element Element;
 struct Element{
   void* f;
-  void* args;
+  void* arg;
   Element *next;
 };
 typedef struct Stack Stack;
@@ -16,6 +16,7 @@ struct Stack{
 };
 
 int free_stack(Stack *stack);
-void push(Stack *stack,void *f,void* args);
-int pop(Stack *stack);
-int display(Stack *stack);
+void push(Stack *stack,void *f,void* arg);
+Element* pop(Stack *stack);
+int isEmpty();
+//int display(Stack *stack);

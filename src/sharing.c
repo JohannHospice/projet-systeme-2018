@@ -1,19 +1,10 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <pthread.h>
 #include "sched.h"
-//#include <pthread.h>
 
-
-
-int initialize(scheduler *s,int nthreads,int qlen){
-	s->tasks_stack = malloc(sizeof(*s->tasks_stack));
-	s->pool = malloc(sizeof(*s->pool));
-	s->tasks_stack->size = 0;
-	s->pool->nthreads = nthreads;
-	s->pool->qlen = qlen;
-	return 0;
-}
+static pthread_mutex_t mutex= PTHREAD_MUTEX_INITIALIZER;
 
 int free_sched(scheduler *s){
 	free_stack(s->tasks_stack);
@@ -21,46 +12,59 @@ int free_sched(scheduler *s){
 	return 0;
 }
 
+
+int initialize(scheduler *s,int nthreads,int qlen){
+	int nbthreads = (nthreads <= 0)? 2:nthreads;
+	s->tasks_stack = malloc(sizeof(*s->tasks_stack));
+	s->pool = malloc(sizeof(*s->pool));
+	s->tasks_stack->size = 0;
+	s->pool->qlen = qlen;
+	s->pool->nthreads = nbthreads;
+	
+	return 0;
+}
+
+void* task_manager(void* ptr){
+	scheduler *s = (scheduler*)ptr;
+	if(isEmpty(s->tasks_stack))
+		puts("ici on doit attendre (wait)");
+
+	pthread_mutex_lock(&mutex);
+	Element* e =pop(s->tasks_stack);
+	pthread_mutex_unlock(&mutex);
+	((taskfunc)e->f)(e->arg,s);
+	free(e);
+	pthread_exit(NULL);// à remplacer par un thread disponible 
+	                   //pour prendre une autre tâche
+}
+
+int throws_threads(scheduler *s){
+	int i = 0,len = s->pool->nthreads;
+	for(i = 0; i<len;i++){
+		pthread_t thread;
+		pthread_create(&thread, NULL,task_manager,s);
+	}
+	//ici contrôler l'ensemble des threads
+	/*
+	while(threads_vivant && existence des tâches dans la pile){
+	
+	}
+	
+	*/
+	return 0;
+}
+
 int sched_init(int nthreads, int qlen, taskfunc f, void *closure){
 	scheduler *s= malloc(sizeof(*s));
 	initialize(s,nthreads,qlen);
-	push(s->tasks_stack,f,closure);//test ajout
-	push(s->tasks_stack,f,closure);//test ajout
-	push(s->tasks_stack,f,closure);//test ajout
-	push(s->tasks_stack,f,closure);//test ajout
-	display(s->tasks_stack);//test d'affichage
-
-	/*if (nthreads <= 0){
-		nthreads = sched_default_threads();
-	}
-
-	struct scheduler *s = malloc(sizeof(struct scheduler));
-	// init lifo shed
-	// push f -> lifo
-
-	for(int i = 0; i< nthreads; i++){
-		pthread_t thread;
-		pthread_create(&thread, NULL, other, closure);
-	}*/
+	throws_threads(s);
 	free_sched(s);
 	return 1;
 }
 
 int sched_spawn(taskfunc f, void *closure, struct scheduler *s){
-	//push
-	//push(s->lifo, f, closure)
+	pthread_mutex_lock(&mutex);
+	push(s->tasks_stack,f,closure);
+	pthread_mutex_unlock(&mutex);
 	return 1;
-}
-
-void *other(void* f/*, struct scheduler *s*/){
-	//args = (scheduler) ;//
-	// TODO
-	// while true
-	// verify lifo empty
-	// declare mutex
-	// si empty sleep
-	// sinon
-	// pop
-	// (*element retourné)(args element retourné,shedular)
-	return f;
 }

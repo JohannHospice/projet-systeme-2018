@@ -19,19 +19,18 @@ int free_stack(Stack *stack){
   free(stack);
   return 1;
 }
-void push(Stack *stack,void *f,void* args){
+void push(Stack *stack,void *f,void* arg){
   Element *new_element = malloc(sizeof(*new_element));
   if(stack == NULL || new_element == NULL)
     exit(EXIT_FAILURE);
 
   new_element->f = f;
-  new_element->args = args;
+  new_element->arg = arg;
   new_element->next = stack->first;
   stack->first = new_element;
 }
 
-int pop(Stack *stack){
-  int res = -1;
+Element* pop(Stack *stack){
   if(stack == NULL)
     exit(EXIT_FAILURE);
 
@@ -39,12 +38,15 @@ int pop(Stack *stack){
 
   if(stack != NULL && stack->first != NULL){
     stack->first = element->next;
-    free(element);
-    res = 1;
   }
-  return res;
+  stack->size -= 1;
+  return element;
 }
-int display(Stack *stack){
+
+int isEmpty(Stack *stack){
+  return(stack->size == 0);
+}
+/*int display(Stack *stack){
   if(stack == NULL)
     exit(EXIT_FAILURE);
   Element *courant = stack->first;
@@ -53,4 +55,4 @@ int display(Stack *stack){
     courant = courant->next;
   }
   return 1;
-}
+}*/
