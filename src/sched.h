@@ -1,6 +1,10 @@
+#include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <string.h>
 #include "lifo.h"
-#include "thread_pool.h"
+
 
 struct scheduler;
 
@@ -10,7 +14,11 @@ typedef void (*taskfunc)(void*, struct scheduler *);
 typedef struct scheduler scheduler;
 struct scheduler{
 	Stack *tasks_stack;
-	ThreadPool* pool;
+	pthread_t *pool;
+	pthread_mutex_t stack_mutex;
+	pthread_cond_t cond_thread;
+	int nthreads;
+	int cpt_thread;
 };
 
 static inline int

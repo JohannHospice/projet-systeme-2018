@@ -142,7 +142,7 @@ int main(int argc, char **argv){
     printf("Done in %lf seconds.\n", delay);
 
     for(int i = 0; i < n - 1; i++){
-        //assert(a[i] <= a[i + 1]);
+        assert(a[i] <= a[i + 1]);
     }
 
     free(a);

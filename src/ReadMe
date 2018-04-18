@@ -1,0 +1,4 @@
+Execution sequentielle :
+	+ ./quicksort -s
+Execution utilisant les threads :
+	+ ./quicksort -t nbr_thread

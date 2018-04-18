@@ -1,70 +1,89 @@
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <pthread.h>
 #include "sched.h"
-
-static pthread_mutex_t mutex= PTHREAD_MUTEX_INITIALIZER;
 
 int free_sched(scheduler *s){
 	free_stack(s->tasks_stack);
+	free(s->pool);
 	free(s);
 	return 0;
 }
 
-
 int initialize(scheduler *s,int nthreads,int qlen){
-	int nbthreads = (nthreads <= 0)? 2:nthreads;
-	s->tasks_stack = malloc(sizeof(*s->tasks_stack));
-	s->pool = malloc(sizeof(*s->pool));
-	s->tasks_stack->size = 0;
-	s->pool->qlen = qlen;
-	s->pool->nthreads = nbthreads;
 	
+	s->tasks_stack = malloc(sizeof(*s->tasks_stack));
+	s->tasks_stack->size = 0;
+	s->tasks_stack->qlen = qlen;
+	s->stack_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+	s->cond_thread = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
+	s->nthreads = (nthreads == 0)? sched_default_threads():nthreads;
+	s->pool =(pthread_t*) malloc(sizeof(pthread_t)*nthreads);
+	s->cpt_thread = 0;
+	
+	return 0;
+}
+
+int end_cond(scheduler *s){
+	if(s->cpt_thread == s->nthreads && isEmpty(s->tasks_stack)){
+		puts("test");
+		//pthread_cond_signal(&s->cond_thread);
+		return 1;		
+	}
 	return 0;
 }
 
 void* task_manager(void* ptr){
 	scheduler *s = (scheduler*)ptr;
-	if(isEmpty(s->tasks_stack))
-		puts("ici on doit attendre (wait)");
-
-	pthread_mutex_lock(&mutex);
-	Element* e =pop(s->tasks_stack);
-	pthread_mutex_unlock(&mutex);
-	((taskfunc)e->f)(e->arg,s);
-	free(e);
-	pthread_exit(NULL);// à remplacer par un thread disponible 
-	                   //pour prendre une autre tâche
+	
+	while(!end_cond(s)){
+		pthread_mutex_lock(&s->stack_mutex);
+		
+		s->cpt_thread +=1;
+		if(isEmpty(s->tasks_stack)){
+			pthread_cond_wait(&s->cond_thread,&s->stack_mutex);
+			//if(s->cpt_thread == s->nthreads && s->tasks_stack->size == 0)
+			//	break;
+		}
+		if(s->tasks_stack->size != 0){
+			Element* e =pop(s->tasks_stack);
+			s->cpt_thread -=1;
+			pthread_mutex_unlock(&s->stack_mutex);
+			((taskfunc)e->f)(e->arg,s);
+			free(e);	
+		}		
+	}
+	pthread_exit(NULL);
 }
 
 int throws_threads(scheduler *s){
-	int i = 0,len = s->pool->nthreads;
-	for(i = 0; i<len;i++){
-		pthread_t thread;
-		pthread_create(&thread, NULL,task_manager,s);
+	int i = 0,ret;
+	for(i = 0; i<s->nthreads;i++){
+		ret = pthread_create(&s->pool[i],NULL,task_manager,s);
+		if(ret == -1){
+			fprintf(stderr, "%s\n",strerror(ret));
+			exit(EXIT_FAILURE);
+		}
 	}
-	//ici contrôler l'ensemble des threads
-	/*
-	while(threads_vivant && existence des tâches dans la pile){
-	
+
+	for(i = 0; i < s->nthreads;i++){
+		pthread_join(s->pool[i],NULL);
 	}
-	
-	*/
+
 	return 0;
 }
 
 int sched_init(int nthreads, int qlen, taskfunc f, void *closure){
 	scheduler *s= malloc(sizeof(*s));
 	initialize(s,nthreads,qlen);
+	push(s->tasks_stack,f,closure);
 	throws_threads(s);
 	free_sched(s);
 	return 1;
 }
 
 int sched_spawn(taskfunc f, void *closure, struct scheduler *s){
-	pthread_mutex_lock(&mutex);
+	pthread_mutex_lock(&s->stack_mutex);
 	push(s->tasks_stack,f,closure);
-	pthread_mutex_unlock(&mutex);
+	pthread_cond_signal(&s->cond_thread);
+	pthread_mutex_unlock(&s->stack_mutex);
+
 	return 1;
 }
