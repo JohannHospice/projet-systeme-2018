@@ -21,35 +21,35 @@ int initialize(scheduler *s,int nthreads,int qlen){
 	return 0;
 }
 
-int end_cond(scheduler *s){
-	if(s->cpt_thread == s->nthreads && isEmpty(s->tasks_stack)){
-		puts("test");
-		//pthread_cond_signal(&s->cond_thread);
-		return 1;		
-	}
-	return 0;
-}
-
 void* task_manager(void* ptr){
 	scheduler *s = (scheduler*)ptr;
+	// printf("+ in\n");
 	
-	while(!end_cond(s)){
+	do {
 		pthread_mutex_lock(&s->stack_mutex);
-		
-		s->cpt_thread +=1;
-		if(isEmpty(s->tasks_stack)){
-			pthread_cond_wait(&s->cond_thread,&s->stack_mutex);
-			//if(s->cpt_thread == s->nthreads && s->tasks_stack->size == 0)
-			//	break;
-		}
-		if(s->tasks_stack->size != 0){
-			Element* e =pop(s->tasks_stack);
-			s->cpt_thread -=1;
+		Element* e = pop(s->tasks_stack);
+		pthread_mutex_unlock(&s->stack_mutex);
+
+		if(e != NULL) {
+			pthread_mutex_lock(&s->stack_mutex);
+			s->cpt_thread++;
 			pthread_mutex_unlock(&s->stack_mutex);
-			((taskfunc)e->f)(e->arg,s);
-			free(e);	
-		}		
-	}
+			
+			// printf("+ execute \n");
+			((taskfunc) e->f)(e->arg, s);
+			
+			pthread_mutex_lock(&s->stack_mutex);
+			s->cpt_thread--;
+			pthread_mutex_unlock(&s->stack_mutex);
+
+			free(e);
+		}
+
+		// printf("-\t enAttentes: %d\t enCours: %d\n", s->tasks_stack->size, s->cpt_thread);
+	} while(0 != s->cpt_thread || !isEmpty(s->tasks_stack)); // si aucune taches en cour dexecution et aucune taches en attentes
+
+	// printf("+ out\t enAttentes: %d\t enCours: %d\n",s->tasks_stack->size, s->cpt_thread);
+
 	pthread_exit(NULL);
 }
 
@@ -66,6 +66,7 @@ int throws_threads(scheduler *s){
 	for(i = 0; i < s->nthreads;i++){
 		pthread_join(s->pool[i],NULL);
 	}
+	// printf("+ join\n");
 
 	return 0;
 }
@@ -80,9 +81,9 @@ int sched_init(int nthreads, int qlen, taskfunc f, void *closure){
 }
 
 int sched_spawn(taskfunc f, void *closure, struct scheduler *s){
+	// printf("# enter\n");
 	pthread_mutex_lock(&s->stack_mutex);
 	push(s->tasks_stack,f,closure);
-	pthread_cond_signal(&s->cond_thread);
 	pthread_mutex_unlock(&s->stack_mutex);
 
 	return 1;

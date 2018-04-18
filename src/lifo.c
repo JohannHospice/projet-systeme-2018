@@ -40,8 +40,9 @@ Element* pop(Stack *stack){
 
   if(stack != NULL && stack->first != NULL){
     stack->first = element->next;
+    stack->size -= 1;
   }
-  stack->size -= 1;
+  
   return element;
 }
 
