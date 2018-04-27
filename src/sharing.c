@@ -1,4 +1,14 @@
+#include "lifo.h"
 #include "sched.h"
+
+struct scheduler{
+	Stack *tasks_stack;
+	pthread_t *pool;
+	pthread_mutex_t stack_mutex;
+	pthread_cond_t cond_thread;
+	int nthreads;
+	int cpt_thread;
+};
 
 int free_sched(scheduler *s){
 	free_stack(s->tasks_stack);

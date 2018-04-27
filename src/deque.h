@@ -2,6 +2,8 @@
 #define DEQUE_H
 #endif
 
+#include <stdlib.h>
+#include <stdio.h>
 
 typedef struct Element Element;
 struct Element{
