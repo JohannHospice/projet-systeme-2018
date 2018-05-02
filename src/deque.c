@@ -10,7 +10,7 @@ int init(Deque *d){
 	return 0;
 }
 
-int append(Deque *d,void *f,void* arg){
+int push_head(Deque *d,void *f,void* arg){
 	Element * e = malloc(sizeof(*e));
 	//if(e != NULL){
 	e->f = f;
@@ -31,7 +31,7 @@ int append(Deque *d,void *f,void* arg){
 	return 0;
 }
 
-int prepend(Deque *d,void *f,void* arg){
+int push_tail(Deque *d,void *f,void* arg){
 	Element * e = malloc(sizeof(*e));
 	if(e != NULL){
 		e->f = f;
@@ -151,6 +151,7 @@ int free_deque(Deque *d){
 	return 0;
 }
 
+/*
 int main(int argc, char const *argv[])
 {
 	
@@ -167,3 +168,5 @@ int main(int argc, char const *argv[])
 	free_deque(q);
 	return 0;
 }
+
+*/
