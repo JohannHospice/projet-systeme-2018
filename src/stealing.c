@@ -1,18 +1,17 @@
 #include <unistd.h>
 #include <pthread.h>
+#include <time.h>
+#include <stdlib.h>
 #include "sched.h"
 #include "deque.h"
 
-int idthread = 0;
 
 struct scheduler{
-	Deque **tasks_deques;
+	Deque **tasks_deque;
 	pthread_t *pool;
-	pthread_mutex_t deque_mutex;
-	pthread_cond_t cond_thread;
+	pthread_mutex_t mutex;
 	int nthreads;
 	int cpt_thread;
-	int id; 
 };
 
 int free_sched(scheduler *s){
@@ -24,31 +23,78 @@ int free_sched(scheduler *s){
 }
 
 int initialize(scheduler *s,int nthreads,int qlen){
-	s->tasks_deque = malloc(sizeof(*s->tasks_deque) * nthreads);
-	for (int i = 0; i < s->nthreads; ++i)
-		init(s->tasks_deque[i]);
-	s->deque_mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
-	s->cond_thread = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
-	s->nthreads = (nthreads == 0)? sched_default_threads():nthreads;
-	s->pool =(pthread_t*) malloc(sizeof(pthread_t)*nthreads);
 	s->cpt_thread = 0;
-	s->id = 0;
+	s->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
+	s->nthreads = (nthreads == 0) ? sched_default_threads() : nthreads;
+	s->pool =(pthread_t*) malloc(sizeof(pthread_t)*nthreads);
+	
+	s->tasks_deque = malloc(sizeof(*s->tasks_deque) * nthreads);
+
+	for (int i = 0; i < s->nthreads; ++i){
+		s->tasks_deque[i] = malloc(sizeof(*s->tasks_deque[i]));
+		init(s->tasks_deque[i]);
+	}
 	
 	return 0;
+}
+
+int getThreadId(scheduler *s){
+	pthread_t t = pthread_self();
+	for (int i = 0; i < s->nthreads; ++i)
+		if(pthread_equal(t, s->pool[i]))
+			return i;
+	return -1;
+}
+
+int allEmpty(Deque **d, int count) {
+	for (int i = 0; i < count; ++i)
+		if(!empty(d[i]))
+			return 0;
+	return 1;
+}
+
+Element *stealing(scheduler *s){
+	int k = rand() % s->nthreads, i = 0;
+	Element *e;
+	while(i < s->nthreads || e == NULL){
+		Deque *d = s->tasks_deque[(k + i) % s->nthreads];
+		if(!empty(d))
+			e = pop_tail(d);
+		i++;
+	}
+	return e;
 }
 
 void* task_manager(void* ptr){
 	scheduler *s = (scheduler*)ptr;
 	printf("+ in\n");
 	
-	int id = s->id;
-	s->id++;
+	int id = getThreadId(s);
 	
 	do {
-		printf("-\t enAttentes: %d\t enCours: %d\n", s->tasks_stack->size, s->cpt_thread);
-	} while(false);
+		if(empty(s->tasks_deque[id])) {
+			pthread_mutex_lock(&s->mutex);
+			Element *e = stealing(s);
+			pthread_mutex_unlock(&s->mutex);
+			
+			if(e != NULL){
+				((taskfunc) e->f)(e->arg, s);
+			}
+			else
+				sleep(1);
+		} else {
+			pthread_mutex_lock(&s->mutex);
+			Element *e = pop_head(s->tasks_deque[id]);
+			pthread_mutex_unlock(&s->mutex);
 
-	printf("+ out\t enAttentes: %d\t enCours: %d\n",s->tasks_stack->size, s->cpt_thread);
+			if(e != NULL)
+				((taskfunc) e->f)(e->arg, s);
+		}
+
+		printf("-\t enAttentes: -\t enCours: %d\n", s->cpt_thread);
+	} while(0 != s->cpt_thread || !allEmpty(s->tasks_deque, s->nthreads));
+
+	printf("+ out\t enAttentes: -\t enCours: %d\n", s->cpt_thread);
 	pthread_exit(NULL);
 }
 
@@ -65,7 +111,7 @@ int throws_threads(scheduler *s){
 	for(i = 0; i < s->nthreads;i++){
 		pthread_join(s->pool[i],NULL);
 	}
-	// printf("+ join\n");
+	printf("+ join\n");
 
 	return 0;
 }
@@ -76,14 +122,17 @@ int sched_init(int nthreads, int qlen, taskfunc f, void *closure){
 	push_head(s->tasks_deque[0],f,closure);
 	throws_threads(s);
 	free_sched(s);
+	srand(time(NULL));
 	return 1;
 }
 
 int sched_spawn(taskfunc f, void *closure, struct scheduler *s){
-	// printf("# enter\n");
-	pthread_mutex_lock(&s->deque_mutex);
-	push_head(s->tasks_deque[idthread],f,closure);
-	pthread_mutex_unlock(&s->deque_mutex);
+	printf("# enter\n");
+	int id = getThreadId(s);
+
+	pthread_mutex_lock(&s->mutex);
+	push_head(s->tasks_deque[id],f,closure);
+	pthread_mutex_unlock(&s->mutex);
 
 	return 1;
 }

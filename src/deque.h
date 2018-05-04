@@ -28,6 +28,8 @@ int push_tail(Deque *d,void *f,void* arg);
 Element *pop_head(Deque *d);
 Element *pop_tail(Deque *d);
 
+int empty(Deque *);
+
 int free_deque(Deque *d);
 /*
 

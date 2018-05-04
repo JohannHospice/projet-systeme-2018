@@ -33,7 +33,7 @@ int initialize(scheduler *s,int nthreads,int qlen){
 
 void* task_manager(void* ptr){
 	scheduler *s = (scheduler*)ptr;
-	// printf("+ in\n");
+	 printf("+ in\n");
 	
 	do {
 		pthread_mutex_lock(&s->stack_mutex);
@@ -45,7 +45,7 @@ void* task_manager(void* ptr){
 			s->cpt_thread++;
 			pthread_mutex_unlock(&s->stack_mutex);
 			
-			// printf("+ execute \n");
+			 printf("+ execute \n");
 			((taskfunc) e->f)(e->arg, s);
 			
 			pthread_mutex_lock(&s->stack_mutex);
@@ -55,10 +55,10 @@ void* task_manager(void* ptr){
 			free(e);
 		}
 
-		// printf("-\t enAttentes: %d\t enCours: %d\n", s->tasks_stack->size, s->cpt_thread);
+		 printf("-\t enAttentes: %d\t enCours: %d\n", s->tasks_stack->size, s->cpt_thread);
 	} while(0 != s->cpt_thread || !isEmpty(s->tasks_stack)); // si aucune taches en cour dexecution et aucune taches en attentes
 
-	// printf("+ out\t enAttentes: %d\t enCours: %d\n",s->tasks_stack->size, s->cpt_thread);
+	 printf("+ out\t enAttentes: %d\t enCours: %d\n",s->tasks_stack->size, s->cpt_thread);
 
 	pthread_exit(NULL);
 }

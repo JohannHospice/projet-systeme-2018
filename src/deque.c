@@ -10,6 +10,13 @@ int init(Deque *d){
 	return 0;
 }
 
+int empty(Deque*d){
+	if(d->head == NULL)
+		return 1;
+	return 0;
+}
+
+
 int push_head(Deque *d,void *f,void* arg){
 	Element * e = malloc(sizeof(*e));
 	//if(e != NULL){
