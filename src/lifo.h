@@ -1,26 +1,27 @@
 #ifndef LIFO_H
 #define LIFO_H
-#endif
 
 #include <stdlib.h>
 #include <stdio.h>
 
-
-typedef struct Element Element;
-struct Element{
+typedef struct lifo_node {
   void* f;
   void* arg;
-  Element *next;
-};
-typedef struct Stack Stack;
-struct Stack{
-  Element *first;
+
+  struct lifo_node *next;
+} lifo_node_t;
+
+typedef struct {
+  lifo_node_t *first;
   int size;
-  int qlen;
-};
+} lifo_t;
 
+lifo_t *lifo_alloc();
+void lifo_free(lifo_t *);
 
-int free_stack(Stack *stack);
-void push(Stack *stack,void *f,void* arg);
-Element* pop(Stack *stack);
-int isEmpty();
+void lifo_push(lifo_t *, void *, void *);
+lifo_node_t* lifo_pop(lifo_t *);
+
+int lifo_is_empty();
+
+#endif

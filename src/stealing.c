@@ -7,38 +7,56 @@
 
 
 struct scheduler{
-	Deque **tasks_deque;
+	deque_t **deque;
 	pthread_t *pool;
 	pthread_mutex_t mutex;
 	int nthreads;
-	int cpt_thread;
+	int cpt;
 };
 
-int free_sched(scheduler *s){
+// scheduler function
+int sched_free(scheduler *s){
 	for (int i = 0; i < s->nthreads; ++i)
-		free_deque(s->tasks_deque[i]);
+		deque_free(s->deque[i]);
 	free(s->pool);
 	free(s);
-	return 0;
+	return 1;
 }
 
-int initialize(scheduler *s,int nthreads,int qlen){
-	s->cpt_thread = 0;
+scheduler *sched_alloc(int nthreads, int qlen, void *f, void *closure){
+	scheduler *s = malloc(sizeof(scheduler));
 	s->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
-	s->nthreads = (nthreads == 0) ? sched_default_threads() : nthreads;
-	s->pool =(pthread_t*) malloc(sizeof(pthread_t)*nthreads);
-	
-	s->tasks_deque = malloc(sizeof(*s->tasks_deque) * nthreads);
+	s->pool = (pthread_t *) malloc(nthreads * sizeof(pthread_t));
+	s->nthreads = nthreads;
+	s->cpt = 0;
 
-	for (int i = 0; i < s->nthreads; ++i){
-		s->tasks_deque[i] = malloc(sizeof(*s->tasks_deque[i]));
-		init(s->tasks_deque[i]);
-	}
+	s->deque = calloc(nthreads, sizeof(deque_t));
+	for (int i = 0; i < s->nthreads; ++i)
+		s->deque[i] = deque_alloc();
+
+	deque_push_head(s->deque[0], deque_node_alloc(f, closure));
 	
-	return 0;
+	return s;
 }
 
-int getThreadId(scheduler *s){
+// deque complementary functions
+int deque_all_size(deque_t **deque, int size){
+	int cc = 0;
+	for (int i = 0; i < size; ++i)
+		cc += deque_size(deque[i]);
+	return cc;
+}
+
+// slow
+int deque_all_empty(deque_t **d, int count) {
+	for (int i = 0; i < count; ++i)
+		if(!deque_is_empty(d[i]))
+			return 0;
+	return 1;
+}
+
+// slow
+int get_thread_id(scheduler *s){
 	pthread_t t = pthread_self();
 	for (int i = 0; i < s->nthreads; ++i)
 		if(pthread_equal(t, s->pool[i]))
@@ -46,92 +64,108 @@ int getThreadId(scheduler *s){
 	return -1;
 }
 
-int allEmpty(Deque **d, int count) {
-	for (int i = 0; i < count; ++i)
-		if(!empty(d[i]))
-			return 0;
-	return 1;
-}
-
-Element *stealing(scheduler *s){
-	int k = rand() % s->nthreads, i = 0;
-	Element *e;
-	while(i < s->nthreads || e == NULL){
-		Deque *d = s->tasks_deque[(k + i) % s->nthreads];
-		if(!empty(d))
-			e = pop_tail(d);
-		i++;
-	}
-	return e;
-}
-
-void* task_manager(void* ptr){
-	scheduler *s = (scheduler*)ptr;
-	printf("+ in\n");
+void* task_manager(void* ptr) {
+	scheduler *s = (scheduler*) ptr;
 	
-	int id = getThreadId(s);
+	int id = get_thread_id(s);
 	
-	do {
-		if(empty(s->tasks_deque[id])) {
-			pthread_mutex_lock(&s->mutex);
-			Element *e = stealing(s);
-			pthread_mutex_unlock(&s->mutex);
-			
-			if(e != NULL){
-				((taskfunc) e->f)(e->arg, s);
+	// printf("+ in %d\n", id);
+
+	while(!deque_all_empty(s->deque, s->nthreads) || s->cpt != 0) {
+		// printf("- %d\t size: %d\t cpt: %d\n", (int) id, deque_all_size(s->deque, s->nthreads), s->cpt);
+		
+		if(deque_is_empty(s->deque[id])) {
+			// workstealing
+			int i = 0, k = rand() % s->nthreads, found = 0;	
+
+			while(i < s->nthreads && found == 0){
+				int p = (k + i) % s->nthreads;
+				deque_t *d = s->deque[p];
+				
+				if(!deque_is_empty(d)) {
+					pthread_mutex_lock(&s->mutex);
+					s->cpt++;
+					deque_node_t *e = deque_pop_tail(d);
+					pthread_mutex_unlock(&s->mutex);
+
+					found = 1;
+					
+					if(e != NULL) {
+						// printf("- %d work stealing on %d\n", id, p);
+						((taskfunc) e->f)(e->arg, s);
+						free(e);
+					}
+
+					pthread_mutex_lock(&s->mutex);
+					s->cpt--;
+					pthread_mutex_unlock(&s->mutex);
+				}
+				i++;
 			}
-			else
+	
+			if(found == 0)
 				sleep(1);
 		} else {
+			// search in self queue
 			pthread_mutex_lock(&s->mutex);
-			Element *e = pop_head(s->tasks_deque[id]);
+			s->cpt++;
+			deque_node_t *e = deque_pop_head(s->deque[id]);
 			pthread_mutex_unlock(&s->mutex);
 
-			if(e != NULL)
+			if(e != NULL) {
+				// printf("- %d work normal\n", id);
 				((taskfunc) e->f)(e->arg, s);
+				free(e);
+			}
+
+			pthread_mutex_lock(&s->mutex);
+			s->cpt--;
+			pthread_mutex_unlock(&s->mutex);
 		}
+	}
 
-		printf("-\t enAttentes: -\t enCours: %d\n", s->cpt_thread);
-	} while(0 != s->cpt_thread || !allEmpty(s->tasks_deque, s->nthreads));
-
-	printf("+ out\t enAttentes: -\t enCours: %d\n", s->cpt_thread);
+	// printf("+ out %d\t size: %d\t cpt: %d\n", (int) id, deque_all_size(s->deque, s->nthreads), s->cpt);
 	pthread_exit(NULL);
 }
 
-int throws_threads(scheduler *s){
-	int i = 0,ret;
-	for(i = 0; i<s->nthreads;i++){
-		ret = pthread_create(&s->pool[i],NULL,task_manager,s);
+int sched_init(int nthreads, int qlen, taskfunc f, void *closure){
+	// init
+	srand(time(NULL));
+	
+	if(nthreads <= 0)
+		nthreads = sched_default_threads();
+
+
+	scheduler *s = sched_alloc(nthreads, qlen, f, closure);
+
+	
+	// run thread
+	for(int i = 0; i<s->nthreads;i++){
+		int ret = pthread_create(&s->pool[i], NULL, task_manager, s);
 		if(ret == -1){
-			fprintf(stderr, "%s\n",strerror(ret));
+			// fprintf(stderr, "%s\n", strerror(ret));
 			exit(EXIT_FAILURE);
 		}
 	}
 
-	for(i = 0; i < s->nthreads;i++){
-		pthread_join(s->pool[i],NULL);
-	}
-	printf("+ join\n");
+	// wait for all
+	for(int i = 0; i < s->nthreads;i++)
+		pthread_join(s->pool[i], NULL);
 
-	return 0;
-}
+	// printf("+ join\n");
+	// printf("+ end enAttentes %d\n", deque_all_size(s->deque, s->nthreads));
 
-int sched_init(int nthreads, int qlen, taskfunc f, void *closure){
-	scheduler *s= malloc(sizeof(*s));
-	initialize(s,nthreads,qlen);
-	push_head(s->tasks_deque[0],f,closure);
-	throws_threads(s);
-	free_sched(s);
-	srand(time(NULL));
+	// free storage
+	sched_free(s);
+
 	return 1;
 }
 
 int sched_spawn(taskfunc f, void *closure, struct scheduler *s){
-	printf("# enter\n");
-	int id = getThreadId(s);
+	int id = get_thread_id(s);
 
 	pthread_mutex_lock(&s->mutex);
-	push_head(s->tasks_deque[id],f,closure);
+	deque_push_head(s->deque[id], deque_node_alloc(f, closure));
 	pthread_mutex_unlock(&s->mutex);
 
 	return 1;

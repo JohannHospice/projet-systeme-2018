@@ -1,39 +1,38 @@
 #ifndef	DEQUE_H
 #define DEQUE_H
-#endif
 
 #include <stdlib.h>
 #include <stdio.h>
 
-typedef struct Element Element;
-struct Element{
-  void* f;
-  void* arg;
-  Element *next;
-  Element *prev;
-};
+typedef struct deque_node_t {
+	struct deque_node_t *next;
+	struct deque_node_t *prev;
+	void* f;
+	void* arg;
+} deque_node_t;
 
-typedef struct Deque Deque;
-struct Deque{
-  Element *head;
-  Element *tail;
-  size_t size;
-};
+typedef struct {
+	struct deque_node_t *head;
+	struct deque_node_t *tail;
+	int size;
+} deque_t;
 
-int init(Deque *d);
 
-int push_head(Deque *d,void *f,void* arg);
-int push_tail(Deque *d,void *f,void* arg);
+deque_t * deque_alloc();
+deque_node_t * deque_node_alloc(void *, void *);
 
-Element *pop_head(Deque *d);
-Element *pop_tail(Deque *d);
+void deque_free(deque_t *d);
 
-int empty(Deque *);
+int deque_is_empty(deque_t *d);
+int deque_size(deque_t *d);
 
-int free_deque(Deque *d);
-/*
+void deque_push_head(deque_t *d, deque_node_t *v);
+void deque_push_tail(deque_t *d, deque_node_t *v);
 
-int insert(Deque *d,void *f,void* arg,int index);
-int display(Deque *d);
-Element *remove_index(Deque *d, int index);
-*/
+deque_node_t *deque_pop_head(deque_t *d);
+deque_node_t *deque_pop_tail(deque_t *d);
+
+deque_node_t *deque_peek_head(deque_t *d);
+deque_node_t *deque_peek_tail(deque_t *d);
+
+#endif
