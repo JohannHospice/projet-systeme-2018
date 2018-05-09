@@ -76,35 +76,33 @@ void* task_manager(void* ptr) {
 		
 		if(deque_is_empty(s->deque[id])) {
 			// workstealing
-			int i = 0, k = rand() % s->nthreads, found = 0;	
+			int i = 0, k = rand() % s->nthreads;	
+			deque_node_t *e = NULL;
 
-			while(i < s->nthreads && found == 0){
-				int p = (k + i) % s->nthreads;
-				deque_t *d = s->deque[p];
-				
-				if(!deque_is_empty(d)) {
-					pthread_mutex_lock(&s->mutex);
-					s->cpt++;
-					deque_node_t *e = deque_pop_tail(d);
-					pthread_mutex_unlock(&s->mutex);
-
-					found = 1;
-					
-					if(e != NULL) {
-						// printf("- %d work stealing on %d\n", id, p);
-						((taskfunc) e->f)(e->arg, s);
-						free(e);
-					}
-
-					pthread_mutex_lock(&s->mutex);
-					s->cpt--;
-					pthread_mutex_unlock(&s->mutex);
-				}
+			while(i < s->nthreads && e == NULL) {
+				deque_t *d = s->deque[(k + i) % s->nthreads];
 				i++;
+				
+				pthread_mutex_lock(&s->mutex);
+				e = deque_pop_tail(d);
+				pthread_mutex_unlock(&s->mutex);
 			}
 	
-			if(found == 0)
+			if(e == NULL)
 				sleep(1);
+			else {
+				// printf("- %d work stealing on %d\n", id, p);
+				pthread_mutex_lock(&s->mutex);
+				s->cpt++;
+				pthread_mutex_unlock(&s->mutex);
+
+				((taskfunc) e->f)(e->arg, s);
+				free(e);
+
+				pthread_mutex_lock(&s->mutex);
+				s->cpt--;
+				pthread_mutex_unlock(&s->mutex);
+			}
 		} else {
 			// search in self queue
 			pthread_mutex_lock(&s->mutex);
@@ -153,7 +151,7 @@ int sched_init(int nthreads, int qlen, taskfunc f, void *closure){
 		pthread_join(s->pool[i], NULL);
 
 	// printf("+ join\n");
-	// printf("+ end enAttentes %d\n", deque_all_size(s->deque, s->nthreads));
+	printf("+ end enAttentes %d\n", deque_all_size(s->deque, s->nthreads));
 
 	// free storage
 	sched_free(s);
