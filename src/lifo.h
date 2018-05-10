@@ -7,7 +7,6 @@
 typedef struct lifo_node {
   void* f;
   void* arg;
-
   struct lifo_node *next;
 } lifo_node_t;
 

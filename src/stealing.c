@@ -5,54 +5,41 @@
 #include "sched.h"
 #include "deque.h"
 
-
 struct scheduler{
 	deque_t **deque;
 	pthread_t *pool;
-	pthread_mutex_t mutex;
+	pthread_mutex_t mutex_deque;
+	pthread_mutex_t mutex_cpt;
 	int nthreads;
 	int cpt;
+	int qlen;
 };
 
 // scheduler function
-int sched_free(scheduler *s){
+void sched_free(scheduler *s){
 	for (int i = 0; i < s->nthreads; ++i)
 		deque_free(s->deque[i]);
+	free(s->deque);
 	free(s->pool);
 	free(s);
-	return 1;
 }
 
 scheduler *sched_alloc(int nthreads, int qlen, void *f, void *closure){
 	scheduler *s = malloc(sizeof(scheduler));
-	s->mutex = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
-	s->pool = (pthread_t *) malloc(nthreads * sizeof(pthread_t));
-	s->nthreads = nthreads;
-	s->cpt = 0;
-
+	s->pool = calloc(nthreads, sizeof(pthread_t));
 	s->deque = calloc(nthreads, sizeof(deque_t));
-	for (int i = 0; i < s->nthreads; ++i)
+	s->nthreads = nthreads;
+	s->qlen = qlen;
+	s->cpt = 0;
+	s->mutex_deque = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
+	s->mutex_cpt = (pthread_mutex_t) PTHREAD_MUTEX_INITIALIZER;
+
+	for (int i = 0; i < nthreads; ++i)
 		s->deque[i] = deque_alloc();
 
-	deque_push_head(s->deque[0], deque_node_alloc(f, closure));
+	deque_push_head(s->deque[rand() % nthreads], deque_node_alloc(f, closure));
 	
 	return s;
-}
-
-// deque complementary functions
-int deque_all_size(deque_t **deque, int size){
-	int cc = 0;
-	for (int i = 0; i < size; ++i)
-		cc += deque_size(deque[i]);
-	return cc;
-}
-
-// slow
-int deque_all_empty(deque_t **d, int count) {
-	for (int i = 0; i < count; ++i)
-		if(!deque_is_empty(d[i]))
-			return 0;
-	return 1;
 }
 
 // slow
@@ -69,60 +56,72 @@ void* task_manager(void* ptr) {
 	
 	int id = get_thread_id(s);
 	
-	// printf("+ in %d\n", id);
+	// printf("+ in\t%d\n", id);
 
-	while(!deque_all_empty(s->deque, s->nthreads) || s->cpt != 0) {
-		// printf("- %d\t size: %d\t cpt: %d\n", (int) id, deque_all_size(s->deque, s->nthreads), s->cpt);
+	while(1) {
 		
-		if(deque_is_empty(s->deque[id])) {
-			// workstealing
-			int i = 0, k = rand() % s->nthreads;	
-			deque_node_t *e = NULL;
+		pthread_mutex_lock(&s->mutex_deque);
+		deque_node_t *e = deque_pop_tail(s->deque[id]);
+		if(e != NULL) {
+			pthread_mutex_unlock(&s->mutex_deque);
 
-			while(i < s->nthreads && e == NULL) {
-				deque_t *d = s->deque[(k + i) % s->nthreads];
-				i++;
-				
-				pthread_mutex_lock(&s->mutex);
-				e = deque_pop_tail(d);
-				pthread_mutex_unlock(&s->mutex);
-			}
-	
-			if(e == NULL)
-				sleep(1);
-			else {
-				// printf("- %d work stealing on %d\n", id, p);
-				pthread_mutex_lock(&s->mutex);
-				s->cpt++;
-				pthread_mutex_unlock(&s->mutex);
-
-				((taskfunc) e->f)(e->arg, s);
-				free(e);
-
-				pthread_mutex_lock(&s->mutex);
-				s->cpt--;
-				pthread_mutex_unlock(&s->mutex);
-			}
-		} else {
-			// search in self queue
-			pthread_mutex_lock(&s->mutex);
+			// normal work
+			pthread_mutex_lock(&s->mutex_cpt);
 			s->cpt++;
-			deque_node_t *e = deque_pop_head(s->deque[id]);
-			pthread_mutex_unlock(&s->mutex);
+			pthread_mutex_unlock(&s->mutex_cpt);
 
+			// printf("- work\t%d\tcpt=%d siz=%d\n", id, s->cpt, deque_size(s->deque[id]));
+			((taskfunc) e->f)(e->arg, s);
+			free(e);
+
+			pthread_mutex_lock(&s->mutex_cpt);
+			s->cpt--;
+			pthread_mutex_unlock(&s->mutex_cpt);
+
+		} else {
+			pthread_mutex_unlock(&s->mutex_deque);
+			// workstealing
+
+			// pick random deque
+			int k = rand() % s->nthreads;
+
+			pthread_mutex_lock(&s->mutex_deque);
+			for (int i = 0; i < s->nthreads && e == NULL; ++i) 
+				e = deque_pop_head(s->deque[(k + i) % s->nthreads]);
+			// if one task has been found
 			if(e != NULL) {
-				// printf("- %d work normal\n", id);
+				pthread_mutex_unlock(&s->mutex_deque);
+				
+				pthread_mutex_lock(&s->mutex_cpt);
+				s->cpt++;
+				pthread_mutex_unlock(&s->mutex_cpt);
+
+				// printf("- steal\t%d\n", id);
 				((taskfunc) e->f)(e->arg, s);
 				free(e);
+
+				pthread_mutex_lock(&s->mutex_cpt);
+				s->cpt--;
+				pthread_mutex_unlock(&s->mutex_cpt);
+			} else {
+				pthread_mutex_unlock(&s->mutex_deque);
+
+				pthread_mutex_lock(&s->mutex_cpt);
+				// break if all deques empty and all thread asleep
+				if(s->cpt == 0) {
+					pthread_mutex_unlock(&s->mutex_cpt);
+					break;
+				}
+				pthread_mutex_unlock(&s->mutex_cpt);
+				// if not sleep for one millisec
+				usleep(1000);
 			}
 
-			pthread_mutex_lock(&s->mutex);
-			s->cpt--;
-			pthread_mutex_unlock(&s->mutex);
-		}
+			// printf("id=%d cpt=%d dae=%d\n", id, s->cpt, deque_all_empty);
+			
+		} 
 	}
 
-	// printf("+ out %d\t size: %d\t cpt: %d\n", (int) id, deque_all_size(s->deque, s->nthreads), s->cpt);
 	pthread_exit(NULL);
 }
 
@@ -133,15 +132,13 @@ int sched_init(int nthreads, int qlen, taskfunc f, void *closure){
 	if(nthreads <= 0)
 		nthreads = sched_default_threads();
 
-
 	scheduler *s = sched_alloc(nthreads, qlen, f, closure);
-
 	
 	// run thread
-	for(int i = 0; i<s->nthreads;i++){
+	for(int i = 0; i < s->nthreads;i++){
 		int ret = pthread_create(&s->pool[i], NULL, task_manager, s);
 		if(ret == -1){
-			// fprintf(stderr, "%s\n", strerror(ret));
+			fprintf(stderr, "%s\n", strerror(ret));
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -149,9 +146,6 @@ int sched_init(int nthreads, int qlen, taskfunc f, void *closure){
 	// wait for all
 	for(int i = 0; i < s->nthreads;i++)
 		pthread_join(s->pool[i], NULL);
-
-	// printf("+ join\n");
-	printf("+ end enAttentes %d\n", deque_all_size(s->deque, s->nthreads));
 
 	// free storage
 	sched_free(s);
@@ -161,10 +155,16 @@ int sched_init(int nthreads, int qlen, taskfunc f, void *closure){
 
 int sched_spawn(taskfunc f, void *closure, struct scheduler *s){
 	int id = get_thread_id(s);
+	
+	// error if deque is full
+	if(deque_size(s->deque[id]) >= s->qlen)
+		return -1;
 
-	pthread_mutex_lock(&s->mutex);
-	deque_push_head(s->deque[id], deque_node_alloc(f, closure));
-	pthread_mutex_unlock(&s->mutex);
+	// printf("- spawn\t%d\n", id);
+
+	pthread_mutex_lock(&s->mutex_deque);
+	deque_push_tail(s->deque[id], deque_node_alloc(f, closure));
+	pthread_mutex_unlock(&s->mutex_deque);
 
 	return 1;
 }

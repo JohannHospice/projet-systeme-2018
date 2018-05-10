@@ -23,7 +23,9 @@ deque_node_t * deque_node_alloc(void *, void *);
 
 void deque_free(deque_t *d);
 
+int deque_check_integrity(deque_t *d);
 int deque_is_empty(deque_t *d);
+
 int deque_size(deque_t *d);
 
 void deque_push_head(deque_t *d, deque_node_t *v);

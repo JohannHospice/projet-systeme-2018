@@ -8,6 +8,7 @@ lifo_t *lifo_alloc() {
 
 lifo_node_t *lifo_node_alloc(void *f, void* arg) {
 	lifo_node_t *n = malloc(sizeof(lifo_node_t));
+	n->next = NULL;
 	n->f = f;
 	n->arg = arg;
 	return n;
