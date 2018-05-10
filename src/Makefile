@@ -1,9 +1,9 @@
 CC=gcc
 CFLAGS=-Wall -g -lpthread
-EXEC=quicksort
+EXEC=sharing stealing
 
 
-all:$(EXEC)
+all: $(EXEC)
 
 sharing: lifo.o sharing.o quicksort.o
 	$(CC) -o $@ $^ $(CFLAGS)
@@ -29,4 +29,4 @@ stealing.o: stealing.c sched.h
 clean:
 	rm -rf *.o
 mrproper: clean
-	rm -rf  $(EXEC)
+	rm -rf $(EXEC)
