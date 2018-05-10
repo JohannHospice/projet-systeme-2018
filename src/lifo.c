@@ -2,6 +2,7 @@
 
 lifo_t *lifo_alloc() {
 	lifo_t *l = malloc(sizeof(lifo_t));
+	l->first = NULL;
 	l->size = 0;
 	return l;
 }
