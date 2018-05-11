@@ -1,4 +1,11 @@
+Compiler :
+	make
+
 Execution sequentielle :
-	+ ./quicksort -s
-Execution utilisant les threads :
-	+ ./quicksort -t nbr_thread
+	./sharing -s
+	./sharing -s
+
+Execution parallèle :
+	./sharing  -t nbr_thread(s) -n element_max_du_tab(entier)
+	./stealing -t nbr_thread(s) -n element_max_du_tab(entier)
+	
