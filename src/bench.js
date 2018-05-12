@@ -1,57 +1,61 @@
 'use strict'
 
-var child = require('child_process');
-var fs = require('fs');
-const SEPARATOR = ";", TSTART = 1, NSTART = 0;
-const N = 25, T = 16, it = 10
+var child = require('child_process'), fs = require('fs');
+const SEPARATOR = ";"
+
+const config = {
+	iterations: 10,
+	threadsMin: 1,
+	threadsMax: 5,
+	dataSizeMin: 50000,
+	dataSizeInc: 50000,
+	dataSizeMax: 1000000,
+}
 
 function executionTime(command, n, t){
 	return parseFloat(child.execSync(command + " -t " + t + " -n " + n, {encoding: "utf8"})
 		.match(/Done in ?(\d\.\d*) seconds\./i)[1])
 }
 
-function executionTimeAvg(command, n, t, it){
+function executionTimeAvg(command, n, t){
 	let timesum = 0
-	for (var i = 0; i < it; i++)
+	for (var i = 0; i < config.iterations; i++)
 		timesum += executionTime(command, n, t)
-	return timesum / it
+	return timesum / config.iterations
 }
 
-function executionTimeArr(command, it){
+function executionTimeArr(command){
 	var arr = []
-	for (var n = NSTART; n < N; n++) {
+	for (var n = config.dataSizeMin; n < config.dataSizeMax; n+=config.dataSizeInc) {
 		let arr1 = [n]
 		console.log(n)
-		for (var t = TSTART; t < T; t++) {
-			arr1.push(executionTimeAvg(command, Math.pow(2,n), t, it))
+		for (var t = config.threadsMin; t < config.threadsMax; t++) {
+			arr1.push(executionTimeAvg(command, n, t))
 		}
 		arr.push(arr1)
 	}
 	return arr
 }
 
-function zort(command, it){
-	var arr = executionTimeArr(command, it)
-	return arr.map(function (line) {
-		return line.map(v => v.toString().replace(/\./gi, ',').slice(0, 9)).join(SEPARATOR)
-	}).join("\n")
+function zort(command){
+	var arr = executionTimeArr(command)
+	return arr.map(line => line.map(v => v.toString().replace(/\./gi, ',').slice(0, 9)).join(SEPARATOR)).join("\n")
 }
 
 function bench(command) {
 	var title = command
-	for (var t = TSTART; t < T; t++) {
+	console.log(command)
+	for (var t = config.threadsMin; t < config.threadsMax; t++) 
 		title += SEPARATOR + t
-	}
-	var z = zort(command, 10)
+	var z = zort(command)
 	return title + "\n" + z
 }
 
 var result = [bench("./stealing"), bench("./sharing")].join("\n")
 
 fs.writeFile("./bench.csv", result, function(err) {
-    if(err) {
+    if(err)
         return console.log(err);
-    }
     console.log("The file was saved!");
 }); 
 
