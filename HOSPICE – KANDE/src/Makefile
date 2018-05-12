@@ -11,6 +11,12 @@ sharing: lifo.o sharing.o quicksort.o
 stealing: deque.o stealing.o quicksort.o
 	$(CC) -o $@ $^ $(CFLAGS)
 
+stealing_copymatrix: deque.o stealing.o copymatrix.o
+	$(CC) -o $@ $^ $(CFLAGS)
+
+sharing_copymatrix: lifo.o sharing.o copymatrix.o
+	$(CC) -o $@ $^ $(CFLAGS)
+
 lifo.o: lifo.c lifo.h
 	$(CC) -o $@ -c $< $(CFLAGS)
 
@@ -19,6 +25,10 @@ deque.o: deque.c deque.h
 
 quicksort.o: quicksort.c sched.h
 	$(CC) -o $@ -c $< $(CFLAGS)
+
+copymatrix.o: copymatrix.c sched.h
+	$(CC) -o $@ -c $< $(CFLAGS)
+
 
 sharing.o: sharing.c sched.h
 	$(CC) -o $@ -c $< $(CFLAGS)
