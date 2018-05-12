@@ -1,0 +1,11 @@
+Compiler :
+	make
+
+Execution sequentielle :
+	./sharing -s
+	./sharing -s
+
+Execution parallèle :
+	./sharing  -t nbr_thread(s) -n element_max_du_tab(entier)
+	./stealing -t nbr_thread(s) -n element_max_du_tab(entier)
+	
