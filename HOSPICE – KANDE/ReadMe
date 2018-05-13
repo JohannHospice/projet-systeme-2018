@@ -8,4 +8,15 @@ Execution sequentielle :
 Execution parallèle :
 	./sharing  -t nbr_thread(s) -n element_max_du_tab(entier)
 	./stealing -t nbr_thread(s) -n element_max_du_tab(entier)
-	
+
+Documents : dans ./doc/
+	statistiques :
+		bench.csv
+		bench.xlsx
+
+	rapport projet:
+		report_structure.odt
+		report_structure.pdf
+
+	sujet projet :
+		sujet.pdf

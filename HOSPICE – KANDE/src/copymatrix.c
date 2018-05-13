@@ -3,52 +3,20 @@
 #include <unistd.h>
 #include <time.h>
 #include <assert.h>
+
+#include "matrix.h"
 #include "sched.h"
-
-
-typedef matrix Matrix;
-struct matrix{
-    int nrow;
-    int ncol;
-    int **data;
-};
 
 
 struct copymatrix_args{
     Matrix *src;
     Matrix *dst;
     int task_index;
-    int current_ncol;
+    int current_nrow;
 };
 
-void create_matrix(Matrix *m,int nrow,int ncol){
-    int i;
-    n->nrow = nrow;
-    n->ncol = ncol;
-    m->data = malloc(nrow*sizeof(int*));
-    for(i = 0; i < ncol;i++){
-        m->data[i] = calloc(ncol,sizeof(int));
-    }
-}
 
-void init_matrix(Matrix *m){
-    int i,j;
-    for(i = 0; i < m->nrow;i++){
-        for(int j = 0; j < m->ncol;j++){
-            m->data[i][j] = rand()%10+1;
-        }
-    }
-}
-
-void free_matrix(Matrix *m){
-    int i;
-    for(i = 0; i < m->nrow; i++){
-        free(m->data[i]);
-    }
-    free(m);
-}
-
-struct copymatrix_args * new_args(Matrix *src,Matrix *dst,int current_ncol){
+struct copymatrix_args * new_args(Matrix *src,Matrix *dst,int current_nrow){
 
     struct copymatrix_args *args = malloc(sizeof(struct copymatrix_args));
     
@@ -57,8 +25,8 @@ struct copymatrix_args * new_args(Matrix *src,Matrix *dst,int current_ncol){
 
     args->src = src;
     args->dst = dst;
-    args->task_index = current_ncol-1;
-    args->current_ncol = current_ncol;
+    args->task_index = current_nrow-1;
+    args->current_nrow = current_nrow;
 
     return args;
 }
@@ -72,27 +40,29 @@ void copymatrix_serial(Matrix *src,Matrix *dst){
 }
 void copymatrix(void *closure, struct scheduler *s);
 
-void gentask(struct copymatrix_args *args){
+void gentask(Matrix *src,Matrix *dst,int *current_nrow,int nrow,scheduler *s){
     int rc;
-    args->current_ncol += 1;    
-    if(args->src->ncol < args->current_ncol)    
+    *current_nrow += 1;    
+    if(nrow < *current_nrow)    
         return;
-    rc = sched_spawn(copymatrix,new_args(args->src,args->dst,args->current_ncol),s);
+    rc = sched_spawn(copymatrix,new_args(src,dst,*current_nrow),s);
     assert(rc >= 0);
 }
 
 
 void copymatrix(void *closure, struct scheduler *s){
     struct copymatrix_args *args = (struct copymatrix_args *)closure;
+    Matrix *src = args->src;
+    Matrix *dst = args->dst;
+    int current_nrow = args->current_nrow;
+    int task_index= args->task_index ;
+    int nrow = src->nrow;
     int i;
-    
     for(i = 0; i < args->src->ncol;i++){
-        dst[args->task_index][i] = src[args->task_index][i];
-    } 
+        dst->data[task_index][i] = src->data[task_index][i];
+    }
     free(closure);
-    gentask(args);
-    gentask(args);
-    gentask(args);
+    gentask(src,dst,&current_nrow,nrow,s);
 }
 
 int main(int argc, char **argv){
@@ -141,7 +111,7 @@ int main(int argc, char **argv){
     clock_gettime(CLOCK_MONOTONIC, &begin);
 
     if(serial) {
-        copymatrix_serial(&src,&src);
+        copymatrix_serial(&src,&dst);
     } else {
         rc = sched_init(nthreads, (n + 127) / 128,
                         copymatrix,new_args(&src,&dst,1));
